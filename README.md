@@ -1,89 +1,91 @@
-# 数据工程项目 - 自动化批处理数据流水线
+# Data Engineering Project - Automated Batch Data Processing
 
-这个项目实现了一个完整的端到端数据处理流水线，用于处理纽约出租车数据。流水线使用Airflow进行编排，Spark进行大规模数据处理，PostgreSQL作为中间存储层，以及BigQuery作为最终的数据仓库。
+This project implements a complete end-to-end data processing pipeline for New York taxi data. The pipeline uses Airflow for orchestration, Spark for large-scale data processing, PostgreSQL as an intermediate storage layer, and BigQuery as the final data warehouse.
 
-## 项目架构
+## Project Architecture
 
-整个数据流水线遵循以下流程：
+The entire data pipeline follows this workflow:
 
 ```
-数据采集 → Spark清洗 → PostgreSQL存储 → 数据建模 → BigQuery同步 → 可视化
+Data Ingestion → Spark Preprocessing → PostgreSQL Storage → Data Modeling → BigQuery Sync → Visualization
 ```
 
-![数据流水线架构](https://via.placeholder.com/800x400?text=数据流水线架构图)
+The following image shows the Airflow DAG execution graph for the NYC taxi data pipeline:
 
-## 技术栈
+![NYC Taxi Pipeline DAG](images/nyc_taxi_pipeline_dag.png)
 
-- **Apache Airflow**: 工作流编排工具
-- **Apache Spark**: 分布式数据处理引擎
-- **PostgreSQL**: 关系型数据库，用作中间存储层
-- **Google BigQuery**: 云数据仓库
-- **Docker**: 容器化部署
-- **Python**: 主要编程语言
-- **Grafana/Looker Studio**: 数据可视化工具（可选）
+## Technology Stack
 
-## 项目结构
+- **Apache Airflow**: Workflow orchestration tool
+- **Apache Spark**: Distributed data processing engine
+- **PostgreSQL**: Relational database used as intermediate storage
+- **Google BigQuery**: Cloud data warehouse
+- **Docker**: Containerized deployment
+- **Python**: Primary programming language
+- **Grafana/Looker Studio**: Data visualization tools (optional)
+
+## Project Structure
 
 ```
 .
-├── config/             # 配置文件目录（云服务账号凭证、数据库连接信息等）
-├── dags/               # Airflow DAG定义（包含NYC出租车数据处理流程）
-├── data/               # 数据存储目录（原始数据和处理后的数据）
-├── plugins/            # Airflow插件（自定义Operators等）
-├── spark-apps/         # Spark应用程序（数据清洗和转换逻辑）
-├── spark-data/         # Spark数据文件（处理结果和临时数据）
-├── lab/                # 实验性代码（概念验证和测试）
-├── docker-compose.yaml # Docker配置（定义服务和依赖关系）
-├── Dockerfile          # Docker镜像定义（环境配置）
-├── .env                # 环境变量（配置参数）
-└── README.md           # 项目文档
+├── config/             # Configuration files (cloud credentials, database connection info)
+├── dags/               # Airflow DAG definitions (NYC taxi data processing workflow)
+├── data/               # Data storage directory (raw and processed data)
+├── plugins/            # Airflow plugins (custom Operators, etc.)
+├── spark-apps/         # Spark applications (data cleaning and transformation logic)
+├── spark-data/         # Spark data files (processing results and temporary data)
+├── lab/                # Experimental code (proof of concepts and tests)
+├── docker-compose.yaml # Docker configuration (service definitions and dependencies)
+├── Dockerfile          # Docker image definition (environment setup)
+├── .env                # Environment variables (configuration parameters)
+└── README.md           # Project documentation
 ```
 
-## 安装与设置
+## Installation and Setup
 
-### 前提条件
+### Prerequisites
 
-- Docker 和 Docker Compose
+- Docker and Docker Compose
 - Python 3.8+
-- 已配置的Google Cloud账号（用于BigQuery访问）
-- PostgreSQL数据库（可通过Docker部署）
+- Configured Google Cloud account (for BigQuery access)
+- PostgreSQL database (can be deployed via Docker)
 
-### 快速开始
+### Quick Start
 
-1. 克隆仓库
+1. Clone the repository
    ```bash
    git clone https://github.com/95xin/Data-Engineering-Project---Automatic-Batch-Data-Processing.git
    cd Data-Engineering-Project---Automatic-Batch-Data-Processing
    ```
 
-2. 配置环境变量
+2. Configure environment variables
    ```bash
    cp .env.example .env
-   # 编辑.env文件，填入您的配置信息
+   # Edit the .env file with your configuration information
    ```
 
-3. 在config目录中添加Google Cloud凭证文件
-   - 从Google Cloud Console下载服务账号密钥JSON文件
-   - 将文件放在config/目录并更新.env文件中的路径
+3. Add Google Cloud credential file to the config directory
+   - Download the service account key JSON file from Google Cloud Console
+   - Place the file in the config/ directory and update the path in the .env file
 
-4. 启动环境
+4. Start the environment
    ```bash
    docker-compose up -d
    ```
 
-5. 访问Airflow Web界面
+5. Access the Airflow Web interface
    ```
    http://localhost:8080
    ```
-   默认用户名和密码可在docker-compose.yaml文件中找到
+   Default username and password can be found in the docker-compose.yaml file
 
-## 详细阶段说明
+## Detailed Pipeline Stages
 
-### 1. 数据采集阶段 (Ingestion)
+### 1. Data Ingestion Stage
 
-使用Python的requests库下载原始Parquet数据并存储在预定义路径下。此任务确保我们有最新的月度数据用于后续处理。
+Using Python's requests library to download raw Parquet data and store it in a predefined path. This task ensures we have fresh monthly data for further processing.
 
-相关代码示例:
+Example code:
 ```python
 def download_data():
     url = "https://data-source.com/path/to/taxi_data.parquet"
@@ -92,65 +94,65 @@ def download_data():
         f.write(response.content)
 ```
 
-### 2. 初步清洗阶段 (Preprocessing with Spark)
+### 2. Preprocessing with Spark
 
-使用SparkSubmitOperator提交PySpark作业进行数据清洗：
-- 移除空值行
-- 标准化日期时间格式
-- 去除重复记录
-- 按月或日期分区以允许多个worker独立处理
-- 最终使用coalesce(1)确保下游任务只处理一个文件
+Using SparkSubmitOperator to submit a PySpark job for data cleaning:
+- Remove rows with null values
+- Standardize datetime formats
+- Deduplicate records
+- Partition by month or date to allow multiple workers to process independently
+- Finally, use coalesce(1) to ensure downstream tasks handle only one file
 
-相关代码示例:
+Example code:
 ```python
 df.dropna() \
   .dropDuplicates() \
   .repartition("year", "month") \
   .write.parquet("/path/to/partitioned/data/")
 
-# 最终输出单一CSV文件
+# Final output as a single CSV file
 df.coalesce(1).write.csv("/path/to/output.csv", header=True)
 ```
 
-### 3. 存入PostgreSQL阶段 (Staging Layer)
+### 3. PostgreSQL Storage Stage (Staging Layer)
 
-此阶段将清洗后的数据加载到PostgreSQL中，作为控制环境允许进一步的SQL转换，然后再发送到BigQuery。
+This stage loads the cleaned data into PostgreSQL, acting as a controlled environment for further SQL transformations before sending the data to BigQuery.
 
-使用分块处理避免内存过载并提高性能：
+Using chunk-based processing to avoid memory overload and improve performance:
 ```python
 df_iter = pd.read_csv(csv_file, chunksize=chunksize, iterator=True)
 while True:
     try:
         chunk = next(df_iter)
-        # 清理列名：去空格
+        # Clean column names: remove spaces
         chunk.columns = [col.strip() for col in chunk.columns]  
-        # 字符串转时间
+        # Convert strings to datetime
         chunk["tpep_pickup_datetime"] = pd.to_datetime(chunk["tpep_pickup_datetime"], errors="coerce")
         chunk["tpep_dropoff_datetime"] = pd.to_datetime(chunk["tpep_dropoff_datetime"], errors="coerce")
-        # 插入数据
+        # Insert data
         chunk.to_sql("table_name", engine, if_exists="append", index=False, method="multi")
     except StopIteration:
-        print("所有 chunk 处理完成，写入 PostgreSQL 完成！")
+        print("All chunks processed. PostgreSQL loading complete!")
         break
 ```
 
-在上传大型数据集后，对常用过滤或连接列创建索引（如B-Tree索引）：
+After uploading large datasets, creating indexes on commonly filtered or joined columns (such as B-Tree indexes):
 ```sql
 CREATE INDEX idx_pickup_datetime ON taxi_data(tpep_pickup_datetime);
 ```
 
-### 4. 数据建模阶段 (Data Modeling)
+### 4. Data Modeling Phase
 
-在此阶段，我们进行数据建模和丰富：
-- 创建主表结构，指定pickup_date作为分区键
-- 创建子表
-- 使用SQL语句和CASE WHEN逻辑丰富数据集
+In this stage, we perform data modeling and enrichment:
+- Create a main table structure, specifying pickup_date as the partition key
+- Create sub-tables
+- Use SQL statements with CASE WHEN logic to enrich the dataset
 
 ```sql
--- 添加时间分类列
+-- Add time bucket column
 ALTER TABLE taxi_data ADD COLUMN time_bucket VARCHAR(20);
 
--- 使用CASE WHEN填充值
+-- Populate values using CASE WHEN
 UPDATE taxi_data
 SET time_bucket = CASE
     WHEN EXTRACT(HOUR FROM tpep_pickup_datetime) BETWEEN 7 AND 10 THEN 'Morning Rush'
@@ -159,9 +161,9 @@ SET time_bucket = CASE
 END;
 ```
 
-### 5. 同步到BigQuery阶段 (Warehouse Layer)
+### 5. BigQuery Synchronization Stage (Warehouse Layer)
 
-配置LoadJobConfig以启用模式自动检测，在摄取过程中自动跳过标题行：
+Configuring LoadJobConfig to enable schema autodetection and automatically skip header rows during ingestion:
 
 ```python
 from google.cloud import bigquery
@@ -180,18 +182,18 @@ with open(csv_file, "rb") as source_file:
         job_config=job_config
     )
 
-load_job.result()  # 等待任务完成
+load_job.result()  # Wait for the job to complete
 ```
 
-### 6. 可视化阶段 (Optional Visualization)
+### 6. Visualization Stage (Optional)
 
-使用Grafana或Looker Studio连接BigQuery数据集并构建仪表板，用于洞察行程量、按时间段的平均车费等。
+Using Grafana or Looker Studio to connect to BigQuery datasets and build dashboards for insights like trip volume, average fare by time buckets, etc.
 
-这一部分虽然是可选的，但通过直观地检查处理结果，它有助于验证整个流水线的输出质量。
+While this part is optional, it helps validate the entire pipeline by visually checking the processed results.
 
-## 监控与维护
+## Monitoring and Maintenance
 
-项目包含监控层以跟踪流水线健康状况、任务失败、数据异常和性能指标：
+The project includes a monitoring layer to track pipeline health, task failures, data anomalies, and performance metrics:
 
 ```python
 default_args = {
@@ -203,28 +205,28 @@ default_args = {
 }
 ```
 
-此外，我们使用：
-- Airflow的任务日志分析执行时间
-- Spark UI检查具有高shuffle读/写时间的阶段并相应优化
+Additionally, we use:
+- Airflow's task logs to analyze execution times
+- Spark UI to check stages with high shuffle read/write times and optimize accordingly
 
-## 增量加载机制
+## Incremental Loading Mechanism
 
-当数据流水线下次自动运行时，上传新数据的机制是增量加载。这确保了只处理新的或更改的数据，提高了处理效率并减少了资源消耗。
+When the data pipeline runs automatically the next time, the mechanism for uploading new data is incremental loading. This ensures that only new or changed data is processed, improving efficiency and reducing resource consumption.
 
-## 总结
+## Summary
 
-总之，本项目涵盖了从摄取到仓库加载的完整批处理工作流程。它展示了在编排(Airflow)、分布式处理(Spark)、关系存储(Postgres)、云仓库(BigQuery)和端到端流水线设计方面的实践经验。
+In summary, this project covers a complete batch processing workflow from ingestion to warehouse loading. It demonstrates hands-on experience with orchestration (Airflow), distributed processing (Spark), relational storage (Postgres), cloud warehouse (BigQuery), and end-to-end pipeline design.
 
-## 贡献
+## Contributing
 
-欢迎贡献代码或提出改进建议！请遵循以下步骤：
+Contributions and improvement suggestions are welcome! Please follow these steps:
 
-1. Fork该仓库
-2. 创建您的功能分支 (`git checkout -b feature/AmazingFeature`)
-3. 提交您的更改 (`git commit -m 'Add some AmazingFeature'`)
-4. 推送到分支 (`git push origin feature/AmazingFeature`)
-5. 打开Pull Request
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request
 
-## 许可证
+## License
 
 [MIT](LICENSE) 
