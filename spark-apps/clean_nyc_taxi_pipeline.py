@@ -3,19 +3,19 @@ from pyspark.sql.functions import col, month, year
 
 spark = SparkSession.builder.appName("CleanTaxiData").getOrCreate()
 
-# 读取原始数据
+# Read raw data
 df = spark.read.parquet("/opt/airflow/lab/yellow_tripdata_2025-01.parquet")
 
 
 df_cleaned = df.dropna().dropDuplicates()
 
-# 增加分区字段（如按月份分区）
+# Add partition fields (like partitioning by month)
 df_cleaned = df_cleaned.withColumn("pickup_month", month(col("tpep_pickup_datetime")))
 
-# 按月分区写出为Parquet（推荐大数据量时）
+# Write out as Parquet partitioned by month (recommended for large datasets)
 # df_cleaned.write.partitionBy("pickup_month").mode("overwrite").parquet("/opt/airflow/lab/cleaned_yellow_tripdata_2025_01_parquet")
 
-# 输出为CSV（小数据量时，coalesce(1)合并为单文件）
+# Output as CSV (for small datasets, coalesce(1) merges into a single file)
 df_cleaned.coalesce(1).write.mode("overwrite").csv("/opt/airflow/lab/cleaned_yellow_tripdata_2025-01.csv", header=True)
 
 spark.stop()

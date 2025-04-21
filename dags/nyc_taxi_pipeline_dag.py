@@ -21,7 +21,7 @@ def download_nyc_data():
     response = requests.get(url)
     with open(output_path, "wb") as f:
         f.write(response.content)
-    print("下载完成！")
+    print("Download completed!")
 
 
 def create_postgres_table():
@@ -52,19 +52,19 @@ def create_postgres_table():
         "pickup_month" INTEGER
 );
         """))
-        # 日期字段加索引
+        # Add indexes for date fields
         conn.execute(text("""CREATE INDEX IF NOT EXISTS idx_pickup_datetime ON yellow_trips_2025_01 USING BTREE ("tpep_pickup_datetime");
                             """))
         conn.execute(text("""CREATE INDEX IF NOT EXISTS idx_dropoff_datetime ON yellow_trips_2025_01 USING BTREE ("tpep_dropoff_datetime");"""))
-        print("表结构和索引已创建")
+        print("Table structure and indexes created")
 
 
 def write_to_postgres():
-    create_postgres_table()  # 先建表
+    create_postgres_table()  # Create table first
     engine = create_engine("postgresql+psycopg2://root:root@pgdatabase:5432/project1")
     chunksize = 100000
     if not csv_files:
-        raise FileNotFoundError("未找到CSV文件")
+        raise FileNotFoundError("CSV file not found")
     csv_file = csv_files[0]
 
     df_iter = pd.read_csv(
@@ -80,31 +80,31 @@ def write_to_postgres():
             chunk = next(df_iter)
             chunk_index += 1
 
-            # 清理列名：去空格
+            # Clean column names: remove spaces
             chunk.columns = [col.strip() for col in chunk.columns]
 
-            # 删除自增主键列，避免插入冲突
+            # Remove auto-increment primary key column to avoid insertion conflicts
             if "id" in chunk.columns:
                 chunk = chunk.drop(columns=["id"])
 
-            # 字符串转时间
+            # Convert strings to datetime
             chunk["tpep_pickup_datetime"] = pd.to_datetime(chunk["tpep_pickup_datetime"], errors="coerce")
             chunk["tpep_dropoff_datetime"] = pd.to_datetime(chunk["tpep_dropoff_datetime"], errors="coerce")
 
-            # 数据质量校验（可选）
+            # Data quality validation (optional)
             if chunk.isnull().sum().sum() > 0:
-                print(f"第 {chunk_index} 个 chunk 存在空值")
+                print(f"Chunk {chunk_index} contains null values")
 
-            # 插入数据
+            # Insert data
             chunk.to_sql("yellow_trips_2025_01", engine, if_exists="append", index=False, method="multi")
-            print(f" 第 {chunk_index} 个 chunk 写入成功")
+            print(f"Chunk {chunk_index} written successfully")
 
         except StopIteration:
-            print("所有 chunk 处理完成，写入 PostgreSQL 完成！")
+            print("All chunks processed, writing to PostgreSQL completed!")
             break
 
         except Exception as e:
-            print(f" 第 {chunk_index} 个 chunk 写入失败：{e}")
+            print(f"Chunk {chunk_index} writing failed: {e}")
             break
     
 
@@ -121,7 +121,7 @@ def upload_to_bigquery_from_spark():
     )
     
     if not csv_files:
-        raise FileNotFoundError("未找到CSV文件")
+        raise FileNotFoundError("CSV file not found")
     csv_file = csv_files[0]
 
     with open(csv_file, "rb") as source_file:
@@ -131,25 +131,25 @@ def upload_to_bigquery_from_spark():
             job_config=job_config,
         )
     job.result()
-    print("CSV文件上传到BigQuery完成！")
+    print("CSV file upload to BigQuery completed!")
 
 def upload_to_bigquery_from_postgres():
 
     client = bigquery.Client.from_service_account_json('/opt/airflow/config/zhenxin-project1-50133539b144.json')
     table_id = "zhenxin-project1.project1.yellow_trips_2025_01_morningrush"
 
-    # 不再创建 table，BigQuery 会自动创建（autodetect）
+    # No longer creating table, BigQuery will create it automatically (autodetect)
     
-    # 从 PostgreSQL 查询 Morning Rush 数据
+    # Query Morning Rush data from PostgreSQL
     engine = create_engine("postgresql+psycopg2://root:root@pgdatabase:5432/project1")
     query = "SELECT * FROM yellow_trips_2025_01 WHERE time_bucket = 'Morning Rush'"
     df = pd.read_sql(query, engine)
 
-    # 导出为 CSV
+    # Export to CSV
     tmp_path = "/opt/airflow/lab/processed_trips_postgres_2025_01_morningrush.csv"
     df.to_csv(tmp_path, index=False)
 
-    # 自动推断 schema，创建表并写入数据
+    # Auto-detect schema, create table and write data
     job_config = bigquery.LoadJobConfig(
         autodetect=True,
         source_format=bigquery.SourceFormat.CSV,
@@ -161,21 +161,21 @@ def upload_to_bigquery_from_postgres():
         job = client.load_table_from_file(source_file, table_id, job_config=job_config)
         job.result()
 
-    print("已将 Morning Rush 数据自动上传至 BigQuery！")
+    print("Morning Rush data has been automatically uploaded to BigQuery!")
 
 
-# 参数化
+# Parameterization
 
 DATA_DIR = "/opt/airflow/lab"
 RAW_PARQUET_FILE = f"{DATA_DIR}/yellow_tripdata_2025-01.parquet"
 CLEANED_CSV_DIR = f"{DATA_DIR}/cleaned_yellow_tripdata_2025-01.csv"
 BQ_PARTITION_FIELD = "tpep_pickup_datetime"
 
-# 数据库配置
+# Database configuration
 POSTGRES_CONN = "postgresql+psycopg2://root:root@pgdatabase:5432/project1"
 POSTGRES_TABLE = "yellow_trips_2025_01"
 
-# BigQuery配置
+# BigQuery configuration
 BQ_PROJECT = "zhenxin-project1"
 BQ_DATASET = "project1"
 BQ_TABLE = f"{BQ_PROJECT}.{BQ_DATASET}.yellow_trips_2025_01_partitioned"
@@ -184,26 +184,26 @@ BQ_CREDENTIALS = "/opt/airflow/config/zhenxin-project1-50133539b144.json"
 def check_data_quality():
     engine = create_engine("postgresql+psycopg2://root:root@pgdatabase:5432/project1")
     with engine.connect() as conn:
-        # 行数校验
+        # Row count validation
         result = conn.execute(text(f"SELECT COUNT(*) FROM {POSTGRES_TABLE}"))
         count = result.scalar()
-        print(f"表{POSTGRES_TABLE}总行数: {count}")
+        print(f"Total rows in table {POSTGRES_TABLE}: {count}")
         if count == 0:
-            raise ValueError("数据表为空！")
+            raise ValueError("Data table is empty!")
     
-        # 关键字段非空校验
+        # Key field non-null validation
         result = conn.execute(text(f"""
             SELECT COUNT(*) FROM {POSTGRES_TABLE}
             WHERE tpep_pickup_datetime IS NULL OR tpep_dropoff_datetime IS NULL
         """))
         null_count = result.scalar()
         if null_count > 0:
-            raise ValueError(f"警告：存在{null_count}条关键字段为空的数据！")
-        print("数据质量校验通过")
+            raise ValueError(f"Warning: There are {null_count} records with null values in key fields!")
+        print("Data quality validation passed")
 
 
 # -------------------
-# DAG设置
+# DAG Settings
 # -------------------
 
 # default_args = {
@@ -221,7 +221,7 @@ default_args = {
 with DAG(
     dag_id="nyc_taxi_pipeline",
     default_args=default_args,
-    schedule_interval=None,  # 手动触发，测试阶段
+    schedule_interval=None,  # Manual trigger, testing phase
     catchup=False,
 ) as dag:
 
